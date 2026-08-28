@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fraud Spike Detector — AI Risk Manager</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0f1117;--card:#1a1d27;--border:#2a2d3a;--text:#e4e4e7;--muted:#9ca3af;--red:#ef4444;--green:#22c55e;--blue:#3b82f6;--yellow:#eab308;--purple:#a855f7}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.container{max-width:1400px;margin:0 auto;padding:20px}
+
+/* Header */
+.header{display:flex;align-items:center;justify-content:space-between;padding:20px 0;border-bottom:1px solid var(--border);margin-bottom:24px}
+.header h1{font-size:1.6rem;font-weight:700}
+.header h1 span{color:var(--red)}
+.header .badge{background:var(--red);color:#fff;padding:4px 12px;border-radius:20px;font-size:0.75rem;font-weight:600;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+
+/* Summary Cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px}
+.card .label{font-size:0.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px}
+.card .value{font-size:1.8rem;font-weight:700}
+.card .sub{font-size:0.75rem;color:var(--muted);margin-top:4px}
+.card.red .value{color:var(--red)}
+.card.green .value{color:var(--green)}
+.card.blue .value{color:var(--blue)}
+.card.yellow .value{color:var(--yellow)}
+.card.purple .value{color:var(--purple)}
+
+/* Charts Row */
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+.chart-box{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px}
+.chart-box h3{font-size:0.9rem;color:var(--muted);margin-bottom:16px}
+
+/* Tabs */
+.tabs{display:flex;gap:8px;margin-bottom:16px}
+.tab{padding:8px 20px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:0.85rem;transition:all .2s}
+.tab.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.tab:hover{border-color:var(--blue)}
+
+/* Table */
+.table-wrap{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.table-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)}
+.table-header h3{font-size:1rem}
+.search-box{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 14px;color:var(--text);font-size:0.85rem;width:280px;outline:none}
+.search-box:focus{border-color:var(--blue)}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:12px 16px;font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--card)}
+td{padding:12px 16px;font-size:0.85rem;border-bottom:1px solid var(--border)}
+tr{cursor:pointer;transition:background .15s}
+tr:hover{background:rgba(59,130,246,0.08)}
+.table-scroll{max-height:500px;overflow-y:auto}
+.table-scroll::-webkit-scrollbar{width:6px}
+.table-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* Badges */
+.badge-fraud{background:rgba(239,68,68,0.15);color:var(--red);padding:3px 10px;border-radius:12px;font-size:0.75rem;font-weight:600}
+.badge-normal{background:rgba(34,197,94,0.15);color:var(--green);padding:3px 10px;border-radius:12px;font-size:0.75rem;font-weight:600}
+.badge-rule{background:rgba(168,85,247,0.15);color:var(--purple);padding:2px 8px;border-radius:8px;font-size:0.7rem;margin:1px}
+
+/* Modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:var(--card);border:1px solid var(--border);border-radius:16px;width:90%;max-width:650px;max-height:85vh;overflow-y:auto;padding:28px}
+.modal h2{font-size:1.2rem;margin-bottom:20px;display:flex;align-items:center;gap:10px}
+.modal .close{margin-left:auto;background:none;border:none;color:var(--muted);font-size:1.4rem;cursor:pointer}
+.modal .close:hover{color:var(--text)}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+.detail-item{background:var(--bg);border-radius:8px;padding:12px}
+.detail-item .lbl{font-size:0.7rem;color:var(--muted);text-transform:uppercase;margin-bottom:4px}
+.detail-item .val{font-size:0.95rem;font-weight:600}
+.explanation-box{background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);border-radius:10px;padding:16px;margin-top:16px}
+.explanation-box h4{font-size:0.8rem;color:var(--blue);margin-bottom:8px;text-transform:uppercase}
+.explanation-box p{font-size:0.9rem;line-height:1.6;color:var(--text)}
+
+/* Loading */
+.loading{text-align:center;padding:60px;color:var(--muted)}
+
+/* Responsive */
+@media(max-width:768px){
+  .charts{grid-template-columns:1fr}
+  .detail-grid{grid-template-columns:1fr}
+  .header{flex-direction:column;gap:12px;text-align:center}
+  .table-header{flex-direction:column;gap:12px}
+  .search-box{width:100%}
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <h1 style="font-size:1.5rem;margin-bottom:4px">Fraud Spike Detector</h1>
+      <p style="color:var(--muted);font-size:0.85rem">AI Risk Manager — Real-time Transaction Monitoring</p>
+    </div>
+    <div style="text-align:right">
+      <span id="status-badge" class="badge-normal">System Online</span>
+    </div>
+  </div>
+
+  <!-- Summary Cards -->
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:24px 0" id="summary-cards">
+    <div class="loading">Loading...</div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts">
+    <div class="chart-box">
+      <h3>Risk Score Distribution</h3>
+      <canvas id="riskChart"></canvas>
+    </div>
+    <div class="chart-box">
+      <h3>Daily Transaction Volume</h3>
+      <canvas id="timeChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Transactions Table -->
+  <div class="table-wrap">
+    <div class="table-header">
+      <div style="display:flex;align-items:center;gap:12px">
+        <h3>Transactions</h3>
+        <div class="tabs">
+          <button class="tab active" data-filter="flagged">Flagged Only</button>
+          <button class="tab" data-filter="all">All Transactions</button>
+          <button class="tab" data-filter="fraud">Actual Fraud</button>
+        </div>
+      </div>
+      <input type="text" class="search-box" placeholder="Search by ID, card, device..." id="searchInput">
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Transaction</th>
+            <th>Amount</th>
+            <th>Time</th>
+            <th>Card</th>
+            <th>Device</th>
+            <th>ML Score</th>
+            <th>Rules</th>
+            <th>Label</th>
+          </tr>
+        </thead>
+        <tbody id="txn-body">
+          <tr><td colspan="8" class="loading">Loading transactions...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h2>
+      Transaction Detail
+      <button class="close" onclick="closeModal()">&times;</button>
+    </h2>
+    <div id="modal-content"></div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let allTxns = [];
+let currentFilter = 'flagged';
+
+// ─── Format Helpers ───
+const fmt = n => '₹' + Number(n).toLocaleString('en-IN', {minimumFractionDigits:0, maximumFractionDigits:0});
+const fmtDate = s => { const d = new Date(s); return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short'}) + ' ' + d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) };
+const pct = n => (n*100).toFixed(1) + '%';
+
+// ─── Load Summary ───
+async function loadSummary() {
+  const res = await fetch(API + '/api/summary');
+  const d = await res.json();
+  const m = d.model_metrics;
+  document.getElementById('summary-cards').innerHTML = `
+    <div class="card blue"><div class="label">Total Txns</div><div class="value">${d.total_transactions.toLocaleString()}</div><div class="sub">Last 30 days</div></div>
+    <div class="card red"><div class="label">Actual Fraud</div><div class="value">${d.actual_fraud}</div><div class="sub">${pct(d.actual_fraud/d.total_transactions)} of total</div></div>
+    <div class="card yellow"><div class="label">ML Flagged</div><div class="value">${d.flagged_by_ml}</div><div class="sub">Model predictions</div></div>
+    <div class="card purple"><div class="label">Rules Flagged</div><div class="value">${d.flagged_by_rules}</div><div class="sub">Rule engine hits</div></div>
+    <div class="card green"><div class="label">Model F1</div><div class="value">${m.f1}</div><div class="sub">AUC: ${m.auc_roc}</div></div>
+  `;
+}
+
+// ─── Load Charts ───
+async function loadCharts() {
+  // Risk distribution
+  const rRes = await fetch(API + '/api/risk-distribution');
+  const rData = await rRes.json();
+  new Chart(document.getElementById('riskChart'), {
+    type: 'bar',
+    data: {
+      labels: rData.labels,
+      datasets: [
+        { label: 'Fraud', data: rData.fraud, backgroundColor: 'rgba(239,68,68,0.7)' },
+        { label: 'Normal', data: rData.normal, backgroundColor: 'rgba(34,197,94,0.4)' }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: '#9ca3af' } } },
+      scales: {
+        x: { ticks: { color: '#9ca3af', maxRotation: 45 }, grid: { color: '#2a2d3a' } },
+        y: { ticks: { color: '#9ca3af' }, grid: { color: '#2a2d3a' } }
+      }
+    }
+  });
+
+  // Time series
+  const tRes = await fetch(API + '/api/time-series');
+  const tData = await tRes.json();
+  new Chart(document.getElementById('timeChart'), {
+    type: 'line',
+    data: {
+      labels: tData.dates,
+      datasets: [
+        { label: 'Normal', data: tData.normal, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.3 },
+        { label: 'Fraud', data: tData.fraud, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.3 }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: '#9ca3af' } } },
+      scales: {
+        x: { ticks: { color: '#9ca3af', maxTicksLimit: 10 }, grid: { color: '#2a2d3a' } },
+        y: { ticks: { color: '#9ca3af' }, grid: { color: '#2a2d3a' } }
+      }
+    }
+  });
+}
+
+// ─── Load Transactions ───
+async function loadTransactions() {
+  const endpoint = currentFilter === 'flagged' ? '/api/flagged' : '/api/transactions';
+  const res = await fetch(API + endpoint);
+  allTxns = await res.json();
+  if (currentFilter === 'fraud') allTxns = allTxns.filter(t => t.is_fraud === 1);
+  renderTable(allTxns);
+}
+
+function renderTable(txns) {
+  const body = document.getElementById('txn-body');
+  if (!txns.length) { body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">No transactions found</td></tr>'; return; }
+  body.innerHTML = txns.map(t => `
+    <tr onclick="openDetail('${t.transaction_id}')">
+      <td style="font-family:monospace;font-size:0.8rem">${t.transaction_id}</td>
+      <td style="font-weight:600">${fmt(t.amount)}</td>
+      <td style="font-size:0.8rem;color:var(--muted)">${fmtDate(t.timestamp)}</td>
+      <td style="font-family:monospace;font-size:0.8rem">${t.card_id}</td>
+      <td style="font-family:monospace;font-size:0.8rem">${t.device_id}</td>
+      <td>
+        <span style="color:${t.ml_probability > 0.7 ? 'var(--red)' : t.ml_probability > 0.3 ? 'var(--yellow)' : 'var(--green)'}">
+          ${pct(t.ml_probability)}
+        </span>
+      </td>
+      <td>
+        ${t.rule_burst ? '<span class="badge-rule">Burst</span>' : ''}
+        ${t.rule_geo_mismatch ? '<span class="badge-rule">Geo</span>' : ''}
+        ${t.rule_odd_hour ? '<span class="badge-rule">Night</span>' : ''}
+        ${!t.rule_burst && !t.rule_geo_mismatch && !t.rule_odd_hour ? '<span style="color:var(--muted)">-</span>' : ''}
+      </td>
+      <td>${t.is_fraud ? '<span class="badge-fraud">Fraud</span>' : '<span class="badge-normal">Normal</span>'}</td>
+    </tr>
+  `).join('');
+}
+
+// ─── Detail Modal ───
+async function openDetail(txnId) {
+  document.getElementById('modal').classList.add('show');
+  document.getElementById('modal-content').innerHTML = '<div class="loading">Loading details & explanation...</div>';
+
+  const res = await fetch(API + '/api/transaction/' + txnId);
+  const t = await res.json();
+
+  document.getElementById('modal-content').innerHTML = `
+    <div class="detail-grid">
+      <div class="detail-item"><div class="lbl">Transaction ID</div><div class="val" style="font-family:monospace">${t.transaction_id}</div></div>
+      <div class="detail-item"><div class="lbl">Amount</div><div class="val">${fmt(t.amount)}</div></div>
+      <div class="detail-item"><div class="lbl">Timestamp</div><div class="val">${fmtDate(t.timestamp)}</div></div>
+      <div class="detail-item"><div class="lbl">Merchant</div><div class="val" style="font-family:monospace">${t.merchant_id}</div></div>
+      <div class="detail-item"><div class="lbl">Card ID</div><div class="val" style="font-family:monospace">${t.card_id}</div></div>
+      <div class="detail-item"><div class="lbl">Device ID</div><div class="val" style="font-family:monospace">${t.device_id}</div></div>
+      <div class="detail-item"><div class="lbl">IP Address</div><div class="val" style="font-family:monospace">${t.ip_address}</div></div>
+      <div class="detail-item"><div class="lbl">Location</div><div class="val" style="font-family:monospace">${t.geo_location}</div></div>
+      <div class="detail-item"><div class="lbl">ML Probability</div><div class="val" style="color:${t.ml_probability > 0.7 ? 'var(--red)' : 'var(--yellow)'}">${pct(t.ml_probability)}</div></div>
+      <div class="detail-item"><div class="lbl">Rules Triggered</div><div class="val">
+        ${[t.rule_burst && 'Burst', t.rule_geo_mismatch && 'Geo-Mismatch', t.rule_odd_hour && 'Odd-Hour'].filter(Boolean).join(', ') || 'None'}
+      </div></div>
+      <div class="detail-item"><div class="lbl">Ground Truth</div><div class="val">${t.is_fraud ? '<span class="badge-fraud">Actual Fraud</span>' : '<span class="badge-normal">Legitimate</span>'}</div></div>
+      <div class="detail-item"><div class="lbl">Risk Score</div><div class="val">${t.risk_score} / 3</div></div>
+    </div>
+    <div class="explanation-box">
+      <h4>AI Explanation</h4>
+      <p>${t.explanation || 'No explanation available.'}</p>
+    </div>
+  `;
+}
+
+function closeModal() { document.getElementById('modal').classList.remove('show'); }
+document.getElementById('modal').addEventListener('click', e => { if (e.target === document.getElementById('modal')) closeModal(); });
+
+// ─── Search ───
+document.getElementById('searchInput').addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  const filtered = allTxns.filter(t =>
+    t.transaction_id.toLowerCase().includes(q) ||
+    t.card_id.toLowerCase().includes(q) ||
+    t.device_id.toLowerCase().includes(q) ||
+    t.merchant_id.toLowerCase().includes(q)
+  );
+  renderTable(filtered);
+});
+
+// ─── Tab Filters ───
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    currentFilter = this.dataset.filter;
+    loadTransactions();
+  });
+});
+
+// ─── Init ───
+loadSummary();
+loadCharts();
+loadTransactions();
+</script>
+</body>
+</html>
