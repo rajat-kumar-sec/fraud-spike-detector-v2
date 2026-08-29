@@ -3,6 +3,10 @@ from ml_model import engineer_features, FEATURE_COLS
 from rule_engine import run_rule_engine
 from explainer import explain_transaction
 
+# Load actual model metrics
+with open('model_metrics.json') as f:
+    final_metrics = json.load(f)
+
 df_raw = pd.read_csv('transactions.csv', parse_dates=['timestamp'])
 df = engineer_features(df_raw)
 df_rules = run_rule_engine(df_raw.copy())
@@ -28,7 +32,7 @@ summary = {
     'flagged_by_ml': int(df['ml_prediction'].sum()),
     'flagged_by_rules': int((df['risk_score']>0).sum()),
     'flagged_combined': int(df['combined_prediction'].sum()),
-    'model_metrics': {'precision': 0.800, 'recall': 0.774, 'f1': 0.787, 'auc_roc': 0.980}
+    'model_metrics': final_metrics
 }
 
 bins = list(np.arange(0, 1.05, 0.05))
@@ -56,8 +60,18 @@ flagged_out['ml_probability'] = flagged_out['ml_probability'].round(4)
 flagged_list = flagged_out.to_dict(orient='records')
 
 explanations = {}
+# Use pre-existing explanations if available, otherwise skip Gemini calls
+try:
+    with open('docs/data.json') as f:
+        old_data = json.load(f)
+        explanations = old_data.get('explanations', {})
+except:
+    pass
+
+# Only generate new explanations for transactions we don't have yet
 for t in flagged_list[:50]:
-    explanations[t['transaction_id']] = explain_transaction(t)
+    if t['transaction_id'] not in explanations:
+        explanations[t['transaction_id']] = explain_transaction(t)
 
 data = {
     'summary': summary,
