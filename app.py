@@ -5,7 +5,7 @@ import json
 from flask import Flask, jsonify, send_from_directory
 from ml_model import engineer_features, FEATURE_COLS
 from rule_engine import run_rule_engine, evaluate_rules
-from claude_explainer import explain_transaction
+from explainer import explain_transaction
 
 app = Flask(__name__, static_folder="static")
 

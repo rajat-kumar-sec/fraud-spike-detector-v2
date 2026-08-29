@@ -3,7 +3,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 
 from ml_model import engineer_features, FEATURE_COLS
 from rule_engine import run_rule_engine, evaluate_rules
-from claude_explainer import explain_transaction
+from explainer import explain_transaction
 print("[OK] All imports work")
 
 import pandas as pd, pickle

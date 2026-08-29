@@ -1,14 +1,23 @@
 import os
-import json
 
 # ─────────────────────────────────────────────────────────────
-# CLAUDE API EXPLAINER
+# GEMINI API EXPLAINER
 # Supports two modes:
 #   - "mock": generates rule-based explanations (no API needed)
-#   - "live": calls real Claude API (needs ANTHROPIC_API_KEY env var)
+#   - "live": calls real Gemini API (needs GEMINI_API_KEY env var)
 # ─────────────────────────────────────────────────────────────
 
-MODE = "mock" if not os.environ.get("ANTHROPIC_API_KEY") else "live"
+MODE = "mock" if not os.environ.get("GEMINI_API_KEY") else "live"
+_client = None
+
+
+def _get_client():
+    """Lazy-init the Gemini client."""
+    global _client
+    if _client is None:
+        from google import genai
+        _client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+    return _client
 
 
 def explain_transaction(txn):
@@ -25,17 +34,15 @@ def explain_transaction(txn):
         str: explanation in plain English
     """
     if MODE == "live":
-        return _explain_with_claude(txn)
+        return _explain_with_gemini(txn)
     else:
         return _explain_with_rules(txn)
 
 
-def _explain_with_claude(txn):
-    """Call real Claude API for explanation."""
+def _explain_with_gemini(txn):
+    """Call real Gemini API for explanation."""
     try:
-        import anthropic
-
-        client = anthropic.Anthropic()
+        client = _get_client()
 
         prompt = f"""You are a fraud analyst assistant for a payment company.
 A transaction has been flagged as potentially fraudulent. Provide a clear,
@@ -55,15 +62,14 @@ Transaction details:
 
 Respond in plain English, no bullet points, no markdown."""
 
-        message = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=200,
-            messages=[{"role": "user", "content": prompt}],
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt,
         )
-        return message.content[0].text
+        return response.text
 
     except Exception as e:
-        return f"[Claude API error: {e}] Falling back to rule-based explanation."
+        return f"[Gemini API error: {e}] Falling back to rule-based explanation."
 
 
 def _explain_with_rules(txn):
@@ -72,7 +78,6 @@ def _explain_with_rules(txn):
     amount = txn.get("amount", 0)
     probability = txn.get("ml_probability", 0)
 
-    # Rule-based reasons
     if txn.get("rule_burst"):
         reasons.append(
             f"Rapid burst detected: this card/device made multiple transactions "
@@ -94,7 +99,6 @@ def _explain_with_rules(txn):
             f"typically minimal."
         )
 
-    # ML-based context
     if probability > 0.9:
         reasons.append(
             f"The ML model is {probability*100:.0f}% confident this is fraud — "
