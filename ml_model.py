@@ -8,7 +8,7 @@ from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import (
     classification_report, confusion_matrix,
-    precision_recall_fscore_support, roc_auc_score
+    precision_recall_fscore_support, roc_auc_score, precision_recall_curve
 )
 
 
@@ -209,8 +209,17 @@ def train_model(df):
     best_f1 = 0
 
     for name, model in models.items():
-        y_pred = model.predict(X_test_scaled)
         y_prob = model.predict_proba(X_test_scaled)[:, 1]
+
+        # Find optimal threshold that balances precision and recall
+        precisions, recalls, thresholds = precision_recall_curve(y_test, y_prob)
+        # Calculate F1 for each threshold
+        f1_scores = 2 * (precisions * recalls) / (precisions + recalls + 1e-10)
+        best_idx = np.argmax(f1_scores)
+        optimal_threshold = thresholds[best_idx] if best_idx < len(thresholds) else 0.5
+
+        # Apply optimal threshold
+        y_pred = (y_prob >= optimal_threshold).astype(int)
 
         precision, recall, f1, _ = precision_recall_fscore_support(
             y_test, y_pred, average="binary"
@@ -221,6 +230,7 @@ def train_model(df):
         print(f"\n{'=' * 50}")
         print(f"  {name}")
         print(f"{'=' * 50}")
+        print(f"  Optimal threshold: {optimal_threshold:.3f}")
         print(f"  Precision: {precision:.3f}")
         print(f"  Recall:    {recall:.3f}")
         print(f"  F1 Score:  {f1:.3f}")
@@ -231,7 +241,7 @@ def train_model(df):
 
         if f1 > best_f1:
             best_f1 = f1
-            best_model = (name, model)
+            best_model = (name, model, optimal_threshold)
 
     print(f"\n>>> Best model: {best_model[0]} (F1={best_f1:.3f})")
 
@@ -245,11 +255,12 @@ def train_model(df):
         bar = "#" * int(imp * 100)
         print(f"    {feat:30s} {imp:.3f} {bar}")
 
-    return best_model[1], scaler, best_model[0], {
+    return best_model[1], scaler, best_model[0], best_model[2], {
         "precision": round(precision, 3),
         "recall": round(recall, 3),
         "f1": round(best_f1, 3),
         "auc_roc": round(auc, 3),
+        "threshold": round(best_model[2], 3),
     }, X_test, y_test, idx_test
 
 
@@ -281,15 +292,15 @@ if __name__ == "__main__":
     print(f"Created {len(FEATURE_COLS)} features\n")
 
     # Train
-    model, scaler, model_name, metrics, X_test, y_test, idx_test = train_model(df)
+    model, scaler, model_name, threshold, metrics, X_test, y_test, idx_test = train_model(df)
 
     # Save
     save_artifacts(model, scaler, metrics, FEATURE_COLS)
 
-    # Save test predictions for dashboard
+    # Save test predictions for dashboard (using optimal threshold)
     X_test_scaled = scaler.transform(X_test)
     test_df = df.loc[idx_test].copy()
-    test_df["ml_prediction"] = model.predict(X_test_scaled)
+    test_df["ml_prediction"] = (model.predict_proba(X_test_scaled)[:, 1] >= threshold).astype(int)
     test_df["ml_probability"] = model.predict_proba(X_test_scaled)[:, 1]
     test_df.to_csv("test_predictions.csv", index=False)
     print(f"Saved test predictions ({len(test_df)} rows) to test_predictions.csv")

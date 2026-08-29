@@ -530,16 +530,16 @@ def generate_borderline_fraud(n=30):
 num_fraud = int(NUM_TRANSACTIONS * FRAUD_RATE)  # ~162 fraud rows
 num_normal = NUM_TRANSACTIONS - num_fraud
 
-normal = generate_normal_transactions(num_normal - 150 - 80)  # leave room for hard examples
+normal = generate_normal_transactions(num_normal - 100 - 50)  # leave room for hard examples
 fraud_bursts = generate_fraud_burst(n_bursts=8, txns_per_burst=6)  # 48
 geo_mismatch = generate_geo_mismatch(n=6)  # 12
 odd_hour = generate_odd_hour_high_value(n=8)  # 8
 
 # Hard examples — the key to realistic AUC
-hard_negatives = generate_hard_negatives(n=150)  # normal but trigger weak signals
-aggressive_negatives = generate_aggressive_hard_negatives(n=80)  # very fraud-like normal
-hard_positives = generate_hard_positives(n=40)   # fraud but subtle
-borderline_fraud = generate_borderline_fraud(n=30)  # 50/50 fraud
+hard_negatives = generate_hard_negatives(n=100)  # normal but trigger weak signals
+aggressive_negatives = generate_aggressive_hard_negatives(n=50)  # very fraud-like normal
+hard_positives = generate_hard_positives(n=25)   # fraud but subtle
+borderline_fraud = generate_borderline_fraud(n=20)  # 50/50 fraud
 
 # Pad remaining fraud with random fraud-like transactions
 obvious_fraud = len(fraud_bursts) + len(geo_mismatch) + len(odd_hour) + len(hard_positives) + len(borderline_fraud)
