@@ -21,7 +21,7 @@ Transaction Data
 │  (3 rules)      │────▶│   (Random Forest)   │────▶│  (Gemini/Claude) │
 │  - Burst        │     │   - 18 features     │     │  - Natural lang  │
 │  - Geo-mismatch │     │   - Class-balanced  │     │  - Risk reasoning│
-│  - Odd-hour     │     │   - 98.1% F1        │     │                  │
+│  - Odd-hour     │     │   - 80.6% F1        │     │                  │
 └─────────────────┘     └─────────────────────┘     └──────────────────┘
        │                         │                          │
        └─────────────────────────┼──────────────────────────┘
@@ -68,18 +68,19 @@ Open **http://localhost:3000** in your browser.
 | System | Precision | Recall | F1 Score | AUC-ROC |
 |---|---|---|---|---|
 | Rules Only | 0.868 | 0.341 | 0.489 | — |
-| ML + Rules | 1.000 | 0.963 | 0.981 | 1.000 |
+| ML + Rules | 0.828 | 0.750 | 0.806 | 0.982 |
 
-The ML model boosts recall from **34% to 96%** while maintaining perfect precision — catching fraud patterns that static rules miss.
+The ML model boosts recall from **34% to 75%** while maintaining strong precision — catching fraud patterns that static rules miss. The model was trained with realistic ambiguity (hard negatives/positives) to avoid overfitting.
 
 ## Project Structure
 
 ```
-├── generate_data.py        # Synthetic dataset generator (1500 txns)
+├── generate_data.py        # Synthetic dataset generator (1900 txns)
 ├── rule_engine.py          # Rule-based fraud detection (3 rules)
 ├── ml_model.py             # ML model training + feature engineering
-├── claude_explainer.py     # AI explanation layer (Gemini/Claude)
+├── explainer.py            # AI explanation layer (Gemini)
 ├── app.py                  # Flask server + API endpoints
+├── run.py                  # Quick start script (sets env vars)
 ├── static/index.html       # Live dashboard (Flask version)
 ├── docs/                   # Static demo for GitHub Pages
 │   ├── index.html
@@ -90,7 +91,7 @@ The ML model boosts recall from **34% to 96%** while maintaining perfect precisi
 ## Limitations
 
 - **Synthetic data** — This uses generated transactions, not real banking data. Real fraud patterns are more complex and imbalanced.
-- **Model overfitting** — AUC-ROC of 1.0 on synthetic data won't translate to production. Real-world performance will be lower.
+- **Model performance** — AUC of 0.982 on synthetic data will be lower in production. Real-world performance depends on data quality and feature availability.
 - **No real-time streaming** — This batch-processes CSV data, not a live transaction feed.
 - **Static explanations** — The AI explainer uses pre-computed text in the static demo. Full AI integration requires a backend API key.
 - **No persistence** — Flask serves data from memory. No database, no auth, no user sessions.
