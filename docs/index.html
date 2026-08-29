@@ -126,48 +126,12 @@ tr:hover{background:var(--card-hover)}
   </div>
 </div>
 <script>
-// ╔══════════════════════════════════════════════════════════╗
-// ║  PASTE YOUR GEMINI API KEY BELOW (between the quotes)  ║
-// ╚══════════════════════════════════════════════════════════╝
-const GEMINI_API_KEY = '';
-
 let DATA = null;
 let allTxns = [];
 let currentFilter = 'all';
 const fmt = n => '\u20B9' + Number(n).toLocaleString('en-IN', {minimumFractionDigits:0, maximumFractionDigits:0});
 const fmtDate = s => { const d = new Date(s); return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short'}) + ' ' + d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) };
 const pct = n => (n*100).toFixed(1) + '%';
-
-async function callGemini(prompt) {
-  if (!GEMINI_API_KEY) return null;
-  try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-    });
-    const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
-  } catch(e) { console.error('Gemini API error:', e); return null; }
-}
-
-function buildPrompt(t) {
-  const rules = [t.rule_burst && 'Rapid Burst', t.rule_geo_mismatch && 'Geo-Mismatch', t.rule_odd_hour && 'Odd-Hour High-Value'].filter(Boolean);
-  return `You are a fraud analyst assistant for a payment company. A transaction has been flagged as potentially fraudulent. Provide a clear, concise explanation (2-3 sentences max) of why this transaction is suspicious and what the merchant/risk team should do.
-
-Transaction details:
-- ID: ${t.transaction_id}
-- Amount: INR ${t.amount}
-- Time: ${t.timestamp}
-- Card: ${t.card_id}
-- Device: ${t.device_id}
-- Location: ${t.geo_location}
-- Merchant: ${t.merchant_id}
-- ML confidence: ${(t.ml_probability*100).toFixed(1)}%
-- Rules triggered: ${rules.join(', ') || 'none'}
-
-Respond in plain English, no bullet points, no markdown.`;
-}
 
 function getFallbackExplanation(t) {
   const reasons = [];
@@ -251,11 +215,7 @@ async function openDetail(txnId) {
   document.getElementById('modal').classList.add('show');
   const sc = t.ml_probability > 0.7 ? 'var(--red)' : 'var(--yellow)';
   const rules = [t.rule_burst && 'Burst', t.rule_geo_mismatch && 'Geo-Mismatch', t.rule_odd_hour && 'Odd-Hour'].filter(Boolean);
-
-  // Show modal immediately with loading state for AI explanation
-  const cachedExplanation = DATA.explanations[txnId];
-  const aiLabel = GEMINI_API_KEY ? 'Gemini AI' : 'AI (Rule-Based)';
-  const aiText = cachedExplanation || '<span style="color:var(--blue)">Generating explanation...</span>';
+  const cachedExplanation = DATA.explanations[txnId] || getFallbackExplanation(t);
 
   document.getElementById('modal-content').innerHTML = `
     <div class="detail-grid">
@@ -270,14 +230,7 @@ async function openDetail(txnId) {
       <div class="detail-item"><div class="lbl">Rules Triggered</div><div class="val">${rules.length ? rules.join(', ') : 'None'}</div></div>
       <div class="detail-item"><div class="lbl">Ground Truth</div><div class="val">${t.is_fraud ? '<span class="badge-fraud">Actual Fraud</span>' : '<span class="badge-normal">Legitimate</span>'}</div></div>
     </div>
-    <div class="explanation-box"><h4>${aiLabel} Explanation</h4><p id="ai-explanation">${aiText}</p></div>`;
-
-  // If no cached explanation and API key is set, call Gemini live
-  if (!cachedExplanation && GEMINI_API_KEY) {
-    const geminiExplanation = await callGemini(buildPrompt(t));
-    const el = document.getElementById('ai-explanation');
-    if (el) el.textContent = geminiExplanation || getFallbackExplanation(t);
-  }
+    <div class="explanation-box"><h4>AI Explanation</h4><p>${cachedExplanation}</p></div>`;
 }
 
 function closeModal() { document.getElementById('modal').classList.remove('show'); }
